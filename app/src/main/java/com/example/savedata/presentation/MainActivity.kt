@@ -6,16 +6,22 @@
 
 package com.example.savedata.presentation
 
+import android.app.RemoteInput
+import androidx.wear.input.RemoteInputIntentHelper
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.SharedPreferences.Editor
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -35,11 +41,12 @@ import androidx.wear.compose.material.*
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import androidx.wear.input.wearableExtender
 
 
 class MainActivity : ComponentActivity() {
     private lateinit var mSensorManager: SensorManager
-    private var mSensor : Sensor? = null
+    private var mSensor: Sensor? = null
     private val HEART_SENSORS_REQUEST_CODE = 10
     var sensorData = ""
 
@@ -58,6 +65,7 @@ object NavRoute {
     const val SCREEN_2 = "screen2"
     const val SCREEN_3 = "screen3"
     const val DETAILSCREEN = "detailScreen/{id}"
+    const val TEXTSCREEN = "textScreen"
 
 }
 
@@ -85,7 +93,7 @@ fun WearApp(sharedPreferences: SharedPreferences) {
     val navController = rememberSwipeDismissableNavController()
     SwipeDismissableNavHost(
         navController = navController,
-        startDestination = NavRoute.SCREEN_2
+        startDestination = NavRoute.TEXTSCREEN
     ) {
         composable(NavRoute.SCREEN_2) {
             Screen2(navController, sharedPreferences)
@@ -105,6 +113,9 @@ fun WearApp(sharedPreferences: SharedPreferences) {
             // Or do nothing
             //Timber.e("Clicked back")
             //}
+        }
+        composable(NavRoute.TEXTSCREEN) {
+            textScreen(sharedPreferences, navController)
         }
 
     }
@@ -220,6 +231,7 @@ fun Screen3(navigation: NavController, SharedPreferences: SharedPreferences) {
 
 }
 
+
 @Composable
 fun detailScreen(id: String, SharedPreferences: SharedPreferences, navigation: NavController) {
     /*Timer().schedule(5000) {
@@ -260,4 +272,64 @@ fun detailScreen(id: String, SharedPreferences: SharedPreferences, navigation: N
     }
 }
 
+@Composable
+fun textScreen(SharedPreferences: SharedPreferences, navigation: NavController) {
 
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                MaterialTheme.colors.background
+            ), verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+
+    ) {
+        TextInput()
+    }
+}
+
+@Composable
+fun TextInput() {
+    val label = remember { mutableStateOf("Start") }
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            it.data?.let { data ->
+                val results: Bundle = RemoteInput.getResultsFromIntent(data)
+                val ipAddress: CharSequence? = results.getCharSequence("ip_address")
+                label.value = ipAddress as String
+            }
+        }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                MaterialTheme.colors.background
+            ), verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+        Chip(
+            label = { Text(label.value) },
+            onClick = {}
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Chip(
+            label = { Text("Insert Data") },
+            onClick = {
+                val intent: Intent = RemoteInputIntentHelper.createActionRemoteInputIntent();
+                val remoteInputs: List<RemoteInput> = listOf(
+                    RemoteInput.Builder("ip_address")
+                        .setLabel("Manual IP Entry")
+                        .wearableExtender {
+                            setEmojisAllowed(false)
+                            setInputActionType(EditorInfo.IME_ACTION_DONE)
+                        }.build()
+                )
+
+                RemoteInputIntentHelper.putRemoteInputsExtra(intent, remoteInputs)
+
+                launcher.launch(intent)
+            }
+        )
+    }
+}
